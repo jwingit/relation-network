@@ -60,13 +60,32 @@ bi_lstm = Bidirectional(LSTM(lstm_unit, implementation=2, return_sequences=False
 lstm_encode = bi_lstm(embedding)
 shapes = cnn_features.shape
 w, h = shapes[1], shapes[2]
+
+def slice_1(t):
+    return t[:, 0, :, :]
+
+def slice_2(t):
+    return t[:, 1:, :, :]
+
+def slice_3(t):
+    return t[:, 0, :]
+
+def slice_4(t):
+    return t[:, 1:, :]
+
+slice_layer1 = Lambda(slice_1)
+slice_layer2 = Lambda(slice_2)
+slice_layer3 = Lambda(slice_3)
+slice_layer4 = Lambda(slice_4)
+
 features = []
 for k1 in range(w):
+    features1 = slice_layer1(cnn_features)
+    cnn_features = slice_layer2(cnn_features)
     for k2 in range(h):
-        def get_feature(t):
-            return t[:, k1, k2, :]
-        get_feature_layer = Lambda(get_feature)
-        features.append(get_feature_layer(cnn_features))
+        features2 = slice_layer3(features1)
+        features1 = slice_layer4(features1)
+        features.append(features2)
 
 relations = []
 concat = Concatenate()
