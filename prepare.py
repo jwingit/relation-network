@@ -22,9 +22,13 @@ def load_data(path):
     return data
 
 
-def tokenize_data(sdata, mxlen):
+def init_tokenizer(sdata):
     texts = [t[1] for t in sdata]
     tokenizer.fit_on_texts(texts)
+
+
+def tokenize_data(sdata, mxlen):
+    texts = [t[1] for t in sdata]
     seqs = tokenizer.texts_to_sequences(texts)
     seqs = pad_sequences(seqs, mxlen)
     data = {}
