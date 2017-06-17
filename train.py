@@ -20,8 +20,8 @@ batch_size = 128
 
 train_json = 'nlvr\\train\\train.json'
 train_img_folder = 'nlvr\\train\\images'
-test_json = 'nlvr\\test\\test.json'
-test_img_folder = 'nlvr\\test\\images'
+test_json = 'nlvr\\dev\\dev.json'
+test_img_folder = 'nlvr\\dev\\images'
 data = prepare.load_data(train_json)
 prepare.init_tokenizer(data)
 data = prepare.tokenize_data(data, mxlen)
