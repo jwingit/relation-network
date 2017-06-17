@@ -4,7 +4,7 @@ from keras.models import Sequential, Model
 from keras.layers import Dense, Dropout, Activation, Flatten, Input, Embedding, \
     LSTM, Bidirectional, Lambda, Concatenate, Add
 from keras.layers.convolutional import Conv2D, MaxPooling2D, AveragePooling2D
-from keras.layers.normalization import BatchNormalization
+from keras.layers.normalization import BatchNormalization, regularizers
 from keras.optimizers import Adam, RMSprop
 import gc
 import prepare
@@ -13,10 +13,11 @@ import pickle
 
 mxlen = 32
 embedding_dim = 50
-lstm_unit = 128
+lstm_unit = 64
 MLP_unit = 128
 epochs = 50
-batch_size = 128
+batch_size = 256
+l2_norm = 0.01
 
 train_json = 'nlvr\\train\\train.json'
 train_img_folder = 'nlvr\\train\\images'
@@ -50,15 +51,13 @@ def bn_layer(x, conv_unit):
 
 
 def conv_net(inputs):
-    model = bn_layer(32, 3)(inputs)
+    model = bn_layer(16, 3)(inputs)
+    model = MaxPooling2D((4, 4), 4)(model)
+    model = bn_layer(16, 3)(model)
     model = MaxPooling2D((3, 3), 3)(model)
-    model = bn_layer(32, 3)(model)
+    model = bn_layer(16, 3)(model)
     model = MaxPooling2D((2, 2), 2)(model)
     model = bn_layer(32, 3)(model)
-    model = MaxPooling2D((2, 2), 2)(model)
-    model = bn_layer(32, 3)(model)
-    model = MaxPooling2D((2, 2), 2)(model)
-    model = bn_layer(64, 3)(model)
     return model
 
 
@@ -68,7 +67,8 @@ cnn_features = conv_net(input1)
 embedding_layer = prepare.embedding_layer(prepare.tokenizer.word_index, prepare.get_embeddings_index(), mxlen)
 embedding = embedding_layer(input2)
 # embedding = Embedding(mxlen, embedding_dim)(input2)
-bi_lstm = Bidirectional(LSTM(lstm_unit, implementation=2, return_sequences=False))
+bi_lstm = Bidirectional(LSTM(lstm_unit, implementation=2, return_sequences=False,
+                             recurrent_regularizer=regularizers.l2(l2_norm), recurrent_dropout=0.25))
 lstm_encode = bi_lstm(embedding)
 shapes = cnn_features.shape
 w, h = shapes[1], shapes[2]
@@ -144,7 +144,6 @@ g_MLP = get_MLP(3)
 mid_relations = []
 for r in relations:
     mid_relations.append(g_MLP(r))
-    print(len(mid_relations))
 combined_relation = Add()(mid_relations)
 
 rn = bn_dense(combined_relation)
@@ -154,18 +153,15 @@ pred = Dense(1, activation='sigmoid')(rn)
 model = Model(inputs=[input1, input2], outputs=pred)
 optimizer = Adam(lr=3e-4)
 model.compile(optimizer=optimizer, loss='binary_crossentropy', metrics=['accuracy'])
-for epoch in range(epochs):
-    model.fit([imgs, ws], labels, epochs=1, batch_size=batch_size)
-    p = model.predict([test_imgs, test_ws], batch_size=batch_size)
-    p = np.array([t[0] for t in p])
-    acc = np.sum((p >= 0.5) == (test_labels >= 0.5)) / len(p)
-    avg = np.sum(p) / len(p)
-    print('epoch: ', epoch, ", acc: ", acc, ", avg = ", avg)
-    for k in range(100):
-        print(p[k], test_labels[k])
+
+
+model.fit([imgs, ws], labels, validation_data=[[test_imgs, test_ws], test_labels],
+          epochs=epochs, batch_size=batch_size)
+
+
 model.save('model')
 tokenizer_file = open('tokenizer', 'wb')
 pickle.dump(prepare.tokenizer, tokenizer_file)
 tokenizer_file.close()
 gc.collect()
-# subprocess.Popen("rundll32.exe powrprof.dll,SetSuspendState 0,1,0")
+subprocess.Popen("rundll32.exe powrprof.dll,SetSuspendState 0,1,0")
