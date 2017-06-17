@@ -14,8 +14,8 @@ import pickle
 mxlen = 32
 embedding_dim = 50
 lstm_unit = 128
-MLP_unit = 256
-epochs = 100
+MLP_unit = 128
+epochs = 50
 batch_size = 128
 
 train_json = 'nlvr\\train\\train.json'
@@ -51,7 +51,7 @@ def bn_layer(x, conv_unit):
 
 def conv_net(inputs):
     model = bn_layer(32, 3)(inputs)
-    model = MaxPooling2D((2, 2), 2)(model)
+    model = MaxPooling2D((3, 3), 3)(model)
     model = bn_layer(32, 3)(model)
     model = MaxPooling2D((2, 2), 2)(model)
     model = bn_layer(32, 3)(model)
@@ -65,9 +65,9 @@ def conv_net(inputs):
 input1 = Input((50, 200, 3))
 input2 = Input((mxlen,))
 cnn_features = conv_net(input1)
-# embedding_layer = prepare.embedding_layer(prepare.tokenizer.word_index, prepare.get_embeddings_index(), mxlen)
-# embedding = embedding_layer(input2)
-embedding = Embedding(mxlen, embedding_dim)(input2)
+embedding_layer = prepare.embedding_layer(prepare.tokenizer.word_index, prepare.get_embeddings_index(), mxlen)
+embedding = embedding_layer(input2)
+# embedding = Embedding(mxlen, embedding_dim)(input2)
 bi_lstm = Bidirectional(LSTM(lstm_unit, implementation=2, return_sequences=False))
 lstm_encode = bi_lstm(embedding)
 shapes = cnn_features.shape
@@ -111,35 +111,40 @@ for feature1 in features:
         relations.append(concat([feature1, feature2, lstm_encode]))
 
 
-def get_dense(n):
+def stack_layer(layers):
+    def f(x):
+        for k in range(len(layers)):
+            x = layers[k](x)
+        return x
+    return f
+
+
+def get_MLP(n):
     r = []
     for k in range(n):
-        r.append(Dense(MLP_unit, activation='relu'))
-    return r
-
-
-def get_MLP(n, denses):
-    def g(x):
-        d = x
-        for k in range(n):
-            d = denses[k](d)
-        return d
-
-    return g
+        s = stack_layer([
+            Dense(MLP_unit),
+            BatchNormalization(),
+            Activation('relu')
+        ])
+        r.append(s)
+    return stack_layer(r)
 
 
 def bn_dense(x):
     y = Dense(MLP_unit)(x)
     y = BatchNormalization()(y)
     y = Activation('relu')(y)
+    y = Dropout(0.5)(y)
     return y
 
 
-g_MLP = get_MLP(4, get_dense(4))
+g_MLP = get_MLP(3)
 
 mid_relations = []
 for r in relations:
     mid_relations.append(g_MLP(r))
+    print(len(mid_relations))
 combined_relation = Add()(mid_relations)
 
 rn = bn_dense(combined_relation)
@@ -147,7 +152,7 @@ rn = bn_dense(rn)
 pred = Dense(1, activation='sigmoid')(rn)
 
 model = Model(inputs=[input1, input2], outputs=pred)
-optimizer = Adam(lr=3e-5)
+optimizer = Adam(lr=3e-4)
 model.compile(optimizer=optimizer, loss='binary_crossentropy', metrics=['accuracy'])
 for epoch in range(epochs):
     model.fit([imgs, ws], labels, epochs=1, batch_size=batch_size)
@@ -163,4 +168,4 @@ tokenizer_file = open('tokenizer', 'wb')
 pickle.dump(prepare.tokenizer, tokenizer_file)
 tokenizer_file.close()
 gc.collect()
-subprocess.Popen("rundll32.exe powrprof.dll,SetSuspendState 0,1,0")
+# subprocess.Popen("rundll32.exe powrprof.dll,SetSuspendState 0,1,0")
