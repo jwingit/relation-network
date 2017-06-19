@@ -15,9 +15,9 @@ mxlen = 32
 embedding_dim = 50
 lstm_unit = 64
 MLP_unit = 128
-epochs = 50
+epochs = 200
 batch_size = 256
-l2_norm = 0.01
+l2_norm = 1e-4
 
 train_json = 'nlvr\\train\\train.json'
 train_img_folder = 'nlvr\\train\\images'
