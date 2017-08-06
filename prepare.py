@@ -12,6 +12,13 @@ np.set_printoptions(threshold=5)
 
 
 def load_data(path):
+    ''' This gets the relation data from the json file for each image
+        =    an ID code
+           + true and false statements about each image
+           + whether the statement is true or false (1 or 0)
+        e.g., ['1304-0', 'There is a circle closely touching a corner of a box.', 1].
+        There are 12410 items (sentences) in nlvr/train/train.json.
+    '''
     f = open(path, 'r')
     data = []
     for l in f:
@@ -24,11 +31,28 @@ def load_data(path):
 
 
 def init_tokenizer(sdata):
+    '''The keras tokenizer class vectorizes a text corpus by turning each
+        sentence into either a sequence of integers (each integer being the index
+        of a token (word) in a dictionary) or into a vector where the coefficient
+        for each token could be binary, based on word count, based on tf-idf...
+        {'colored': 206, 'bottom': 41, 'they': 115, 'only': 28, 'tower': 11, etc...'''
     texts = [t[1] for t in sdata]
     tokenizer.fit_on_texts(texts)
 
 
 def tokenize_data(sdata, mxlen):
+    '''Converts each word in data to a dictionary where the key is sentence ID (e.g., '1304-0'),
+       and the value is a list of two items: 1) the n integer vector mxlen long
+
+       ['1304-0', 'There is a circle closely touching a corner of a box.', 1]
+       seqs (before padding):   [1, 3, 2, 30, 32, 15, 2, 58, 13, 2, 6]
+      (these are simply the indices of each word in the list of all words in the dataset.
+      This array is then padded with 0's, and then the id ('1304-1') is
+       added along with the true/false (0 or 1) value at the end.
+    example data item:
+    ['11-2': [array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                      0, 0, 0, 0, 0, 0, 0, 1, 16, 25, 61, 4, 25, 8, 21], dtype=int32), 1]
+    '''
     texts = [t[1] for t in sdata]
     ids = [t[0] for t in sdata]
     seqs = tokenizer.texts_to_sequences(texts)
@@ -84,10 +108,22 @@ def load_images(path, sdata, w, h, debug=False, split_images=False):
     ims = [ims[t] for t in idx]
     ws = [ws[t] for t in idx]
     labels = [labels[t] for t in idx]
-    ims = np.array(ims, dtype=np.float32)
+    imgs = np.array(ims, dtype=np.float32)
     ws = np.array(ws, dtype=np.float32)
     labels = np.array(labels, dtype=np.float32)
-    return ims, ws, labels
+    ''' imgs: image data (shape = (n_images, 50, 200, 3))  (3 for colors)
+        ws:   image sentence expressed in word tokens (shape = (n_images, maxlen))
+              (there is only one sentence per image; e.g., the red triangle of right over the blue square).
+        labels: true or false (whether the sentence (ws) is a true of false statement about the image)
+        The point of the key-value conditioning above is to get the words and labels. Which is 
+        quite inefficient because translated back and forth.
+        ims.shape = (4662, 50, 200, 3) = (no. of images_mini,  h, w, colors)
+        ws.shape = (4662, 32) = (no. of images_mini,) = image sentence code (concat of
+                                                   word index numbers, padded w/zeros)
+        labels.shape = (4662,) = (no. of images_mini, )
+        So we don't need the "labels" such as '11-2'.  
+    '''
+    return imgs, ws, labels
 
 
 def get_embeddings_index(path):
